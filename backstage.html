@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Runtime Board — バックステージ</title>
+<link rel="stylesheet" href="css/style.css" />
+<style>
+  .back-link {
+    position: fixed;
+    top: 14px;
+    left: 18px;
+    font-size: 12px;
+    color: var(--text-2);
+    z-index: 5;
+  }
+  .back-link:hover { color: var(--text-0); }
+</style>
+</head>
+<body>
+<a class="back-link" href="index.html">← ホームへ戻る</a>
+
+<div class="backstage-layout">
+  <div class="backstage-main">
+    <div class="stage-eyebrow" id="b-cue">CUE —</div>
+    <div class="stage-title" style="font-size:clamp(20px,3vw,36px);" id="b-title">読み込み中…</div>
+    <div class="stage-subtitle" id="b-sub">&nbsp;</div>
+    <div class="stage-timer" style="font-size:clamp(50px,10vw,110px);" id="b-timer">00:00</div>
+    <div class="badge" id="b-badge"><span class="dot"></span><span id="b-badge-text">停止中</span></div>
+  </div>
+
+  <div class="backstage-queue">
+    <h2>本日の進行 / QUEUE</h2>
+    <div id="b-queue"></div>
+  </div>
+</div>
+
+<div class="stage-message" id="b-message"></div>
+
+<script src="js/storage.js"></script>
+<script src="js/timer-engine.js"></script>
+<script src="js/util.js"></script>
+<script>
+  const { Store, Timer } = RB;
+  const { escapeHtml } = RB.Util;
+
+  function render(state) {
+    const timing = Timer.computeTiming(state);
+
+    if (!timing.event) {
+      document.getElementById("b-cue").textContent = "STAND BY";
+      document.getElementById("b-title").textContent = state.project.title || "Runtime Board";
+      document.getElementById("b-sub").innerHTML = "&nbsp;";
+      document.getElementById("b-timer").textContent = "00:00";
+      document.getElementById("b-timer").className = "stage-timer idle";
+    } else {
+      document.getElementById("b-cue").textContent = "CUE " + (timing.event.cue || "—");
+      document.getElementById("b-title").textContent = timing.event.title || "（無題）";
+      document.getElementById("b-sub").textContent = timing.event.subtitle || timing.event.presenter || "\u00A0";
+      document.getElementById("b-timer").textContent = Timer.formatSeconds(timing.remaining, { forceHours: timing.duration >= 3600 });
+
+      let cls = "";
+      if (state.playback.state === "stop") cls = "idle";
+      else if (timing.overtime) cls = "danger";
+      else if (timing.remaining < 30) cls = "warn";
+      document.getElementById("b-timer").className = "stage-timer " + cls;
+    }
+
+    const badgeText = { stop: "停止中", play: "進行中", pause: "一時停止中" }[state.playback.state];
+    document.getElementById("b-badge-text").textContent = badgeText;
+    document.getElementById("b-badge").classList.toggle("on-air", state.playback.state === "play");
+
+    // キュー一覧（現在 + 次の項目）
+    const playable = Timer.playableEvents(state).filter((e) => !e.skip);
+    const loadedIdx = playable.findIndex((e) => e.id === state.playback.loadedId);
+    const startIdx = Math.max(0, loadedIdx === -1 ? 0 : loadedIdx);
+    const upcoming = playable.slice(startIdx, startIdx + 6);
+
+    document.getElementById("b-queue").innerHTML =
+      upcoming
+        .map(
+          (e, i) => `
+        <div class="queue-item ${e.id === state.playback.loadedId ? "current" : ""}">
+          <div class="idx">${startIdx + i + 1}</div>
+          <div class="info">
+            <b>${escapeHtml(e.title) || "（無題）"}</b>
+            <span>${escapeHtml(e.presenter)}　${Timer.formatSeconds(e.duration)}</span>
+          </div>
+        </div>`
+        )
+        .join("") || `<div class="empty-hint">進行表がまだありません</div>`;
+
+    const msgEl = document.getElementById("b-message");
+    msgEl.textContent = state.message.text;
+    msgEl.className = "stage-message " + (state.message.visible ? "visible " : "") + (state.message.level === "danger" ? "danger" : "");
+  }
+
+  Store.subscribe(render);
+  setInterval(() => render(Store.getState()), 500);
+</script>
+</body>
+</html>

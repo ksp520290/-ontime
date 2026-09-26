@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Runtime Board — タイマー表示</title>
+<link rel="stylesheet" href="css/style.css" />
+<style>
+  body { overflow: hidden; }
+  .back-link {
+    position: fixed;
+    top: 18px;
+    left: 22px;
+    font-size: 12px;
+    color: var(--text-2);
+    z-index: 5;
+  }
+  .back-link:hover { color: var(--text-0); }
+</style>
+</head>
+<body>
+<a class="back-link" href="index.html">← ホームへ戻る</a>
+<div class="stage-clock" id="wall-clock">--:--:--</div>
+
+<div class="stage-screen" id="screen">
+  <div class="stage-main">
+    <div class="stage-eyebrow" id="s-cue">CUE —</div>
+    <div class="stage-title" id="s-title">読み込み中…</div>
+    <div class="stage-subtitle" id="s-sub">&nbsp;</div>
+    <div class="stage-timer idle" id="s-timer">00:00</div>
+    <div class="stage-next" id="s-next">&nbsp;</div>
+  </div>
+</div>
+
+<div class="stage-message" id="s-message"></div>
+
+<script src="js/storage.js"></script>
+<script src="js/timer-engine.js"></script>
+<script src="js/util.js"></script>
+<script>
+  const { Store, Timer } = RB;
+  const { escapeHtml } = RB.Util;
+
+  function tickClock() {
+    document.getElementById("wall-clock").textContent = Timer.formatClock(Date.now());
+  }
+  setInterval(tickClock, 1000);
+  tickClock();
+
+  function render(state) {
+    const timing = Timer.computeTiming(state);
+    const screen = document.getElementById("screen");
+    const timerEl = document.getElementById("s-timer");
+
+    if (!timing.event) {
+      document.getElementById("s-cue").textContent = "STAND BY";
+      document.getElementById("s-title").textContent = state.project.title || "Runtime Board";
+      document.getElementById("s-sub").innerHTML = "&nbsp;";
+      timerEl.textContent = "00:00";
+      timerEl.className = "stage-timer idle";
+      document.getElementById("s-next").innerHTML = "&nbsp;";
+      screen.className = "stage-screen";
+    } else {
+      document.getElementById("s-cue").textContent = "CUE " + (timing.event.cue || "—");
+      document.getElementById("s-title").textContent = timing.event.title || "（無題）";
+      document.getElementById("s-sub").textContent = timing.event.subtitle || timing.event.presenter || "\u00A0";
+
+      timerEl.textContent = Timer.formatSeconds(timing.remaining, { forceHours: timing.duration >= 3600 });
+
+      let cls = "";
+      if (state.playback.state === "stop") cls = "idle";
+      else if (timing.overtime) cls = "danger";
+      else if (timing.remaining < 30) cls = "warn";
+      timerEl.className = "stage-timer " + cls;
+      screen.className = "stage-screen " + (cls === "warn" ? "state-warn" : cls === "danger" ? "state-danger" : "");
+
+      const nxt = Timer.nextPlayable(state, state.playback.loadedId);
+      document.getElementById("s-next").innerHTML = nxt
+        ? `次の予定: <b>${escapeHtml(nxt.title)}</b>`
+        : "&nbsp;";
+    }
+
+    const msgEl = document.getElementById("s-message");
+    msgEl.textContent = state.message.text;
+    msgEl.className = "stage-message " + (state.message.visible ? "visible " : "") + (state.message.level === "danger" ? "danger" : "");
+  }
+
+  Store.subscribe(render);
+  setInterval(() => render(Store.getState()), 250);
+
+  document.addEventListener("dblclick", () => {
+    if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(() => {});
+    else document.exitFullscreen();
+  });
+</script>
+</body>
+</html>

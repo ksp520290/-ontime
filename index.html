@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Runtime Board — ホーム</title>
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<div class="app">
+  <div id="nav-mount"></div>
+
+  <main>
+    <div class="container">
+
+      <div class="panel">
+        <div class="panel-head"><h2>プロジェクト情報</h2></div>
+        <div class="panel-body grid-2">
+          <div>
+            <div class="field">
+              <label>プロジェクト名</label>
+              <input type="text" id="f-title" />
+            </div>
+            <div class="field">
+              <label>会場</label>
+              <input type="text" id="f-venue" />
+            </div>
+            <div class="field">
+              <label>開始基準時刻</label>
+              <input type="time" id="f-start" />
+            </div>
+          </div>
+          <div>
+            <div class="field">
+              <label>イベント数</label>
+              <div class="mono" id="stat-count" style="font-size:20px;">0</div>
+            </div>
+            <div class="field">
+              <label>合計所要時間</label>
+              <div class="mono" id="stat-runtime" style="font-size:20px;">00:00</div>
+            </div>
+            <div class="field">
+              <label>終了予定時刻</label>
+              <div class="mono" id="stat-end" style="font-size:20px;">--:--</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="view-grid">
+        <a class="view-card" href="editor.html">
+          <div class="tag">EDITOR</div>
+          <h3>進行表エディタ</h3>
+          <p>キュー・タイトル・所要時間・色分けを編集し、スケジュールを組み立てます。</p>
+        </a>
+        <a class="view-card" href="operator.html">
+          <div class="tag">OPERATOR</div>
+          <h3>オペレーター画面</h3>
+          <p>進行を再生・一時停止・送りし、時間の加減やメッセージ送信を行います。</p>
+        </a>
+        <a class="view-card" href="timer.html" target="_blank" rel="noopener">
+          <div class="tag">STAGE / PUBLIC</div>
+          <h3>タイマー表示（客席・登壇者用）</h3>
+          <p>全画面表示用の大型タイマー。別ウィンドウ・別画面での常時表示に向いています。</p>
+        </a>
+        <a class="view-card" href="backstage.html" target="_blank" rel="noopener">
+          <div class="tag">BACKSTAGE</div>
+          <h3>バックステージ画面</h3>
+          <p>現在と次の登壇予定、伝達メッセージをまとめた楽屋・控室向け表示です。</p>
+        </a>
+      </div>
+
+      <hr />
+
+      <div class="toolbar">
+        <button id="btn-demo">サンプル進行表を読み込む</button>
+        <div class="spacer"></div>
+        <button id="btn-export">JSONを書き出す</button>
+        <button id="btn-import">JSONを読み込む</button>
+        <button class="danger-outline" id="btn-reset">すべてリセット</button>
+        <input type="file" id="file-import" accept="application/json" style="display:none" />
+      </div>
+
+      <p class="footer-note">
+        データはこの端末のブラウザ（localStorage）内にのみ保存されます。サーバーへの送信は行われません。
+        複数の画面（タイマー表示・バックステージなど）を別ウィンドウで同時に開くと、進行状況が自動的に同期されます。
+      </p>
+
+    </div>
+  </main>
+</div>
+
+<script src="js/storage.js"></script>
+<script src="js/timer-engine.js"></script>
+<script src="js/nav.js"></script>
+<script src="js/util.js"></script>
+<script>
+  const { Store } = RB;
+  const { Timer } = RB;
+  const { toast } = RB.Util;
+
+  RB.Nav.renderTopbar(document.getElementById("nav-mount"));
+
+  const fTitle = document.getElementById("f-title");
+  const fVenue = document.getElementById("f-venue");
+  const fStart = document.getElementById("f-start");
+
+  function render(state) {
+    fTitle.value = state.project.title;
+    fVenue.value = state.project.venue;
+    fStart.value = state.project.startTime;
+
+    const playable = Timer.playableEvents(state);
+    document.getElementById("stat-count").textContent = playable.length;
+
+    const total = Timer.totalRuntime(state);
+    document.getElementById("stat-runtime").textContent = Timer.formatSeconds(total, { forceHours: total >= 3600 });
+
+    const endMs = Timer.baseTimeToday(state.project.startTime) + total * 1000;
+    document.getElementById("stat-end").textContent = Timer.formatClock(endMs);
+  }
+
+  Store.subscribe(render);
+
+  fTitle.addEventListener("input", () => Store.update((s) => (s.project.title = fTitle.value)));
+  fVenue.addEventListener("input", () => Store.update((s) => (s.project.venue = fVenue.value)));
+  fStart.addEventListener("input", () => Store.update((s) => (s.project.startTime = fStart.value || "09:00")));
+
+  document.getElementById("btn-demo").addEventListener("click", () => {
+    if (Store.getState().events.length && !confirm("現在の進行表を上書きしてサンプルを読み込みますか？")) return;
+    Store.loadDemo();
+    toast("サンプル進行表を読み込みました");
+  });
+
+  document.getElementById("btn-export").addEventListener("click", () => {
+    const blob = new Blob([Store.exportJSON()], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = (Store.getState().project.title || "rundown") + ".json";
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+
+  document.getElementById("btn-import").addEventListener("click", () => {
+    document.getElementById("file-import").click();
+  });
+  document.getElementById("file-import").addEventListener("change", (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const parsed = JSON.parse(reader.result);
+        Store.replaceAll(parsed);
+        toast("JSONを読み込みました");
+      } catch (err) {
+        alert("読み込みに失敗しました：JSON形式を確認してください。");
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  });
+
+  document.getElementById("btn-reset").addEventListener("click", () => {
+    if (confirm("すべてのデータを消去して初期状態に戻します。よろしいですか？")) {
+      Store.reset();
+      toast("リセットしました");
+    }
+  });
+</script>
+</body>
+</html>
