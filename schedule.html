@@ -12,21 +12,53 @@
   <main>
     <div class="container" id="page-content">
       <div class="grid-2">
-        <div class="panel">
-          <div class="panel-head"><h2>連携内容</h2></div>
-          <div class="panel-body">
-            <textarea id="notes" rows="16" placeholder="関係部署との連携事項、共有事項、注意点などを自由に記入してください…" style="width:100%;"></textarea>
+        <div>
+          <div class="panel">
+            <div class="panel-head"><h2>カレンダー</h2></div>
+            <div class="panel-body">
+              <div class="cal-head">
+                <button class="ghost" id="cal-prev">◀</button>
+                <b id="cal-title"></b>
+                <button class="ghost" id="cal-next">▶</button>
+              </div>
+              <div class="cal-grid" id="cal-grid"></div>
+            </div>
+          </div>
+          <div class="panel" style="margin-top:10px;">
+            <div class="panel-head"><h2 id="day-head">日付を選択してください</h2></div>
+            <div class="panel-body" id="day-body" style="display:none;">
+              <div class="field"><label>タイトル</label><input type="text" id="day-title" style="width:100%;" /></div>
+              <div class="field"><label>内容</label><textarea id="day-text" rows="5" style="width:100%;"></textarea></div>
+              <button class="ghost" id="day-clear">この日の予定を削除</button>
+            </div>
           </div>
         </div>
-        <div class="panel">
-          <div class="panel-head"><h2>Todoリスト</h2></div>
-          <div class="panel-body">
-            <div class="row" style="margin-bottom:10px;">
-              <input type="text" id="todo-input" placeholder="やることを入力して追加…" style="flex:1;" />
-              <button class="primary" id="todo-add">追加</button>
+        <div>
+          <div class="panel">
+            <div class="panel-head"><h2>連携内容</h2></div>
+            <div class="panel-body">
+              <div class="row" style="margin-bottom:8px;">
+                <input type="text" id="coop-owner" list="owner-list" placeholder="担当（例：照明）" style="width:130px;" />
+                <datalist id="owner-list"></datalist>
+                <input type="text" id="coop-text" placeholder="連携事項（共有事項・注意点）" style="flex:1;" />
+                <button class="primary" id="coop-add">追加</button>
+              </div>
+              <div class="row" style="margin-bottom:8px;">
+                <label>仕分け：</label><select id="coop-filter"></select>
+              </div>
+              <div id="coop-list"></div>
             </div>
-            <div id="todo-list"></div>
-            <div class="empty-hint" id="todo-empty" style="display:none;">タスクはまだありません。</div>
+          </div>
+          <div class="panel" style="margin-top:10px;">
+            <div class="panel-head"><h2>Todoリスト</h2></div>
+            <div class="panel-body">
+              <div class="row" style="margin-bottom:10px;">
+                <input type="text" id="todo-input" placeholder="やることを入力して追加…" style="flex:1;" />
+                <button class="primary" id="todo-add">追加</button>
+              </div>
+              <div id="todo-list"></div>
+              <div class="empty-hint" id="todo-empty" style="display:none;">タスクはまだありません。</div>
+            </div>
           </div>
         </div>
       </div>
@@ -47,12 +79,12 @@
   if (RB.Nav.guardProductionMode(false)) {
     document.getElementById("page-content").style.display = "none";
   } else {
-    const notesEl = document.getElementById("notes");
     const listEl = document.getElementById("todo-list");
     const emptyEl = document.getElementById("todo-empty");
 
     function render(state) {
-      if (document.activeElement !== notesEl) notesEl.value = state.schedule.notes || "";
+      renderCal(state);
+      renderCoop(state);
 
       const todos = state.schedule.todos || [];
       emptyEl.style.display = todos.length ? "none" : "block";
@@ -68,12 +100,87 @@
         .join("");
     }
 
-    Store.subscribe(render);
 
-    const debouncedNotes = debounce((val) => {
-      Store.update((s) => (s.schedule.notes = val));
+    // ---------------- カレンダー ----------------
+    const $ = (id) => document.getElementById(id);
+    const now = new Date();
+    let viewY = now.getFullYear(), viewM = now.getMonth(), selKey = null;
+    const key = (y, m, d) => `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+
+    function renderCal(state) {
+      $("cal-title").textContent = `${viewY}年${viewM + 1}月`;
+      const cal = state.schedule.calendar || {};
+      const first = new Date(viewY, viewM, 1).getDay();
+      const days = new Date(viewY, viewM + 1, 0).getDate();
+      const todayKey = key(now.getFullYear(), now.getMonth(), now.getDate());
+      let h = ["日", "月", "火", "水", "木", "金", "土"].map((w) => `<div class="cal-dow">${w}</div>`).join("");
+      for (let i = 0; i < first; i++) h += `<div class="cal-cell empty"></div>`;
+      for (let d = 1; d <= days; d++) {
+        const k = key(viewY, viewM, d), it = cal[k];
+        h += `<div class="cal-cell ${k === todayKey ? "today" : ""} ${k === selKey ? "sel" : ""}" data-k="${k}"><span class="d">${d}</span>${it && (it.title || it.body) ? `<div class="t">${escapeHtml(it.title || "（無題）")}</div>` : ""}</div>`;
+      }
+      $("cal-grid").innerHTML = h;
+      $("day-body").style.display = selKey ? "block" : "none";
+      $("day-head").textContent = selKey ? selKey.replace(/-/g, "/") + " の予定" : "日付を選択してください";
+      if (selKey) {
+        const it = cal[selKey] || {};
+        if (document.activeElement !== $("day-title")) $("day-title").value = it.title || "";
+        if (document.activeElement !== $("day-text")) $("day-text").value = it.body || "";
+      }
+    }
+    $("cal-prev").onclick = () => { if (--viewM < 0) { viewM = 11; viewY--; } renderCal(Store.getState()); };
+    $("cal-next").onclick = () => { if (++viewM > 11) { viewM = 0; viewY++; } renderCal(Store.getState()); };
+    $("cal-grid").addEventListener("click", (ev) => {
+      const c = ev.target.closest("[data-k]");
+      if (!c) return;
+      selKey = c.dataset.k;
+      renderCal(Store.getState());
+      $("day-title").focus();
+    });
+    const saveDay = debounce(() => {
+      if (!selKey) return;
+      Store.update((s) => {
+        const t = $("day-title").value, b = $("day-text").value;
+        if (!t && !b) delete s.schedule.calendar[selKey];
+        else s.schedule.calendar[selKey] = { title: t, body: b };
+      });
     }, 300);
-    notesEl.addEventListener("input", () => debouncedNotes(notesEl.value));
+    $("day-title").addEventListener("input", saveDay);
+    $("day-text").addEventListener("input", saveDay);
+    $("day-clear").onclick = () => {
+      if (!selKey) return;
+      Store.update((s) => delete s.schedule.calendar[selKey]);
+      $("day-title").value = "";
+      $("day-text").value = "";
+    };
+
+    // ---------------- 連携内容（担当別に仕分け） ----------------
+    let filterOwner = "";
+    function renderCoop(state) {
+      const coop = state.schedule.coop || [];
+      const owners = [...new Set(coop.map((c) => c.owner || "未分類"))];
+      $("owner-list").innerHTML = owners.map((o) => `<option value="${escapeHtml(o)}">`).join("");
+      $("coop-filter").innerHTML = `<option value="">すべての担当</option>` + owners.map((o) => `<option ${o === filterOwner ? "selected" : ""}>${escapeHtml(o)}</option>`).join("");
+      const shown = owners.filter((o) => !filterOwner || o === filterOwner);
+      $("coop-list").innerHTML = shown.length
+        ? shown.map((o) => `<div class="coop-group"><h3>${escapeHtml(o)}</h3>${coop.filter((c) => (c.owner || "未分類") === o).map((c) => `<div class="coop-item"><span class="txt">${escapeHtml(c.text)}</span><button class="icon-btn warn" data-coop-del="${c.id}">✕</button></div>`).join("")}</div>`).join("")
+        : `<div class="empty-hint">連携事項はまだありません。</div>`;
+    }
+    $("coop-filter").onchange = () => { filterOwner = $("coop-filter").value; renderCoop(Store.getState()); };
+    function addCoop() {
+      const text = $("coop-text").value.trim();
+      if (!text) return;
+      const owner = $("coop-owner").value.trim() || "未分類";
+      Store.update((s) => s.schedule.coop.push({ id: Store.uid("c"), owner, text }));
+      $("coop-text").value = "";
+      $("coop-text").focus();
+    }
+    $("coop-add").onclick = addCoop;
+    $("coop-text").addEventListener("keydown", (ev) => { if (ev.key === "Enter") addCoop(); });
+    $("coop-list").addEventListener("click", (ev) => {
+      const b = ev.target.closest("[data-coop-del]");
+      if (b) Store.update((s) => (s.schedule.coop = s.schedule.coop.filter((c) => c.id !== b.dataset.coopDel)));
+    });
 
     function addTodo() {
       const input = document.getElementById("todo-input");
@@ -109,6 +216,7 @@
         });
       }
     });
+    Store.subscribe(render);
   }
 </script>
 </body>

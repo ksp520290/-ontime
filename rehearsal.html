@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Runtime Board — 机上リハ</title>
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<div class="app">
+  <div id="nav-mount"></div>
+  <main>
+    <div class="container" id="page-content">
+      <!-- メイン画面ヘッダー -->
+      <div class="rehearsal-head panel" style="padding:8px 12px;">
+        <b id="sel-title" style="margin-right:auto;">タイトルを選択してください</b>
+        <input type="file" id="file-bg" accept="image/*" hidden />
+        <input type="file" id="file-item" accept="image/*" multiple hidden />
+        <button id="btn-bg">🖼 背景追加</button>
+        <button id="btn-item">➕ 配置画像</button>
+        <button class="primary" id="btn-save">💾 舞台を保存</button>
+        <button class="ghost" id="btn-del-item">選択画像を削除</button>
+        <button class="ghost" id="btn-clear-bg">背景を消す</button>
+        <button class="ghost" id="btn-clear-hist">この履歴を削除</button>
+      </div>
+
+      <div class="rehearsal-layout">
+        <div class="panel">
+          <div class="panel-head"><h2>本日の進行表</h2></div>
+          <div id="rh-list"></div>
+        </div>
+        <div>
+          <div id="stage"></div>
+          <div style="color:var(--text-2);font-size:12px;margin-top:6px;">
+            画像はドラッグで移動、選択して右下の■で拡大縮小できます。Deleteキーで削除。「舞台を保存」で選択中のタイトルに背景・配置を記憶します。
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script src="js/storage.js"></script>
+<script src="js/timer-engine.js"></script>
+<script src="js/sync.js"></script>
+<script src="js/nav.js"></script>
+<script src="js/util.js"></script>
+<script>
+  const { Store, Timer } = RB;
+  const { escapeHtml, toast } = RB.Util;
+  RB.Nav.renderTopbar(document.getElementById("nav-mount"));
+
+  if (RB.Nav.guardProductionMode(false)) {
+    document.getElementById("page-content").style.display = "none";
+  } else {
+    const $ = (id) => document.getElementById(id);
+    // 画像は容量が大きいので同期対象の Store とは別の localStorage キーに保存する
+    const HKEY = "runtimeboard_rehearsal_v1";
+    const loadHist = () => { try { return JSON.parse(localStorage.getItem(HKEY)) || {}; } catch (e) { return {}; } };
+    const saveHist = (h) => {
+      try { localStorage.setItem(HKEY, JSON.stringify(h)); return true; }
+      catch (e) { toast("保存容量を超えました。画像を小さくするか、古い履歴を削除してください"); return false; }
+    };
+
+    let selId = null;
+    let work = { bg: "", items: [] }; // 編集中の舞台
+    let selItem = null;
+    const stage = $("stage");
+
+    // 画像を縮小して dataURL 化（背景は JPEG、配置画像は透過保持の PNG）
+    function readImage(file, maxSize, asJpeg) {
+      return new Promise((resolve) => {
+        const fr = new FileReader();
+        fr.onload = () => {
+          const img = new Image();
+          img.onload = () => {
+            const r = Math.min(1, maxSize / Math.max(img.width, img.height));
+            const c = document.createElement("canvas");
+            c.width = Math.round(img.width * r);
+            c.height = Math.round(img.height * r);
+            c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+            resolve({ src: asJpeg ? c.toDataURL("image/jpeg", 0.8) : c.toDataURL("image/png"), ar: c.height / c.width });
+          };
+          img.src = fr.result;
+        };
+        fr.readAsDataURL(file);
+      });
+    }
+
+    function renderStage() {
+      stage.style.backgroundImage = work.bg ? `url(${work.bg})` : "none";
+      stage.innerHTML = work.items
+        .map((it) => `<div class="stage-img ${it.id === selItem ? "sel" : ""}" data-id="${it.id}" style="left:${it.x}%;top:${it.y}%;width:${it.w}%;aspect-ratio:${1 / it.ar};"><img src="${it.src}" alt="" /><span class="rz"></span></div>`)
+        .join("");
+    }
+
+    function renderList(state) {
+      const hist = loadHist();
+      $("rh-list").innerHTML = state.events.length
+        ? state.events
+            .map((e) => {
+              if (e.type === "block") return `<div style="padding:6px 10px;background:var(--bg-2);font-weight:600;font-size:12px;">${escapeHtml(e.title)}</div>`;
+              return `<div class="rh-item ${e.id === selId ? "sel" : ""}" data-id="${e.id}"><b>${escapeHtml(e.title) || "（無題）"}</b><small>${escapeHtml(e.subtitle)}</small>${hist[e.id] ? '<span class="saved">● 保存済み</span>' : ""}</div>`;
+            })
+            .join("")
+        : `<div class="empty-hint">進行表エディタでイベントを作成してください。</div>`;
+      const sel = state.events.find((e) => e.id === selId);
+      $("sel-title").textContent = sel ? sel.title || "（無題）" : "タイトルを選択してください";
+    }
+
+    function select(id) {
+      selId = id;
+      const h = loadHist()[id];
+      work = h ? JSON.parse(JSON.stringify({ bg: h.bg, items: h.items })) : { bg: "", items: [] };
+      selItem = null;
+      renderStage();
+      renderList(Store.getState());
+    }
+
+    $("rh-list").addEventListener("click", (ev) => {
+      const r = ev.target.closest(".rh-item");
+      if (r) select(r.dataset.id);
+    });
+
+    const need = () => (selId ? true : (toast("先に左の進行表からタイトルを選択してください"), false));
+    $("btn-bg").onclick = () => need() && $("file-bg").click();
+    $("btn-item").onclick = () => need() && $("file-item").click();
+    $("file-bg").onchange = async (ev) => {
+      const f = ev.target.files[0];
+      if (f) { work.bg = (await readImage(f, 1600, true)).src; renderStage(); }
+      ev.target.value = "";
+    };
+    $("file-item").onchange = async (ev) => {
+      for (const f of ev.target.files) {
+        const im = await readImage(f, 500, false);
+        const it = { id: Store.uid("i"), src: im.src, ar: im.ar, x: 40, y: 40, w: 20 };
+        work.items.push(it);
+        selItem = it.id;
+      }
+      renderStage();
+      ev.target.value = "";
+    };
+    $("btn-save").onclick = () => {
+      if (!need()) return;
+      const ev = Store.getState().events.find((e) => e.id === selId);
+      const h = loadHist();
+      h[selId] = { title: ev ? ev.title : "", subtitle: ev ? ev.subtitle : "", bg: work.bg, items: work.items, savedAt: Date.now() };
+      if (saveHist(h)) { toast("舞台を保存しました"); renderList(Store.getState()); }
+    };
+    function delItem() {
+      if (!selItem) return;
+      work.items = work.items.filter((i) => i.id !== selItem);
+      selItem = null;
+      renderStage();
+    }
+    $("btn-del-item").onclick = delItem;
+    document.addEventListener("keydown", (ev) => {
+      if (ev.key === "Delete" && !/INPUT|TEXTAREA/.test(document.activeElement.tagName)) delItem();
+    });
+    $("btn-clear-bg").onclick = () => { work.bg = ""; renderStage(); };
+    $("btn-clear-hist").onclick = () => {
+      if (!need() || !confirm("このタイトルの保存済み履歴を削除しますか？")) return;
+      const h = loadHist();
+      delete h[selId];
+      saveHist(h);
+      select(selId);
+    };
+
+    // ドラッグ移動 / 右下■でサイズ変更（ステージ比率で保持）
+    stage.addEventListener("pointerdown", (ev) => {
+      const box = ev.target.closest(".stage-img");
+      if (!box) { selItem = null; renderStage(); return; }
+      const it = work.items.find((i) => i.id === box.dataset.id);
+      selItem = it.id;
+      const resizing = ev.target.classList.contains("rz");
+      const rect = stage.getBoundingClientRect();
+      const sx = ev.clientX, sy = ev.clientY, ox = it.x, oy = it.y, ow = it.w;
+      box.classList.add("sel");
+      box.setPointerCapture(ev.pointerId);
+      const move = (e) => {
+        const dx = ((e.clientX - sx) / rect.width) * 100, dy = ((e.clientY - sy) / rect.height) * 100;
+        if (resizing) it.w = Math.max(3, Math.min(100, ow + dx));
+        else { it.x = Math.max(-it.w / 2, Math.min(100 - it.w / 2, ox + dx)); it.y = Math.max(-10, Math.min(95, oy + dy)); }
+        box.style.left = it.x + "%"; box.style.top = it.y + "%";
+        box.style.width = it.w + "%";
+      };
+      const up = () => { box.removeEventListener("pointermove", move); box.removeEventListener("pointerup", up); renderStage(); };
+      box.addEventListener("pointermove", move);
+      box.addEventListener("pointerup", up);
+      ev.preventDefault();
+    });
+
+    Store.subscribe((s) => renderList(s));
+    const first = Store.getState().events.find((e) => e.type !== "block");
+    if (first) select(first.id);
+  }
+</script>
+</body>
+</html>

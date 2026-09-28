@@ -60,6 +60,7 @@
   const { debounce } = RB.Util;
 
   RB.Nav.renderTopbar(document.getElementById("nav-mount"));
+  setTimeout(() => { const r = document.getElementById("rows"); if (r) Rundown.bindFlags(r); }, 0);
 
   const rowsEl = document.getElementById("rows");
   const headRow = document.getElementById("head-row");

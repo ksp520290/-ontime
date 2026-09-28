@@ -69,6 +69,7 @@
   const { toast, parseMMSS, debounce } = RB.Util;
 
   RB.Nav.renderTopbar(document.getElementById("nav-mount"));
+  setTimeout(() => { const r = document.getElementById("rows"); if (r) Rundown.bindFlags(r); }, 0);
   if (RB.Nav.guardProductionMode(false)) {
     document.getElementById("page-content").style.display = "none";
   } else {
