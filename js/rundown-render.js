@@ -154,7 +154,14 @@
     if (opts.tabs && opts.tabs.shimote) {
       html += `<td>${isMc ? curtainButtons(e) : '<span style="color:var(--text-2);">—</span>'}</td>`;
     }
+    if (opts.tabs && opts.tabs.lighting) {
+      html += `<td>${memoCell(e, "memoLighting", opts)}</td>`;
+      html += flagCell(e, "lightIntermission", "幕間", "tgl-violet");
+      html += flagCell(e, "lightArena", "アリーナ", "tgl-blue");
+      html += flagCell(e, "lightWork", "作業灯", "tgl-amber");
+    }
     if (opts.tabs && opts.tabs.sound) {
+      html += flagCell(e, "groupMc", "団体司会", "tgl-red");
       html += `<td>${memoCell(e, "soundSource", opts)}</td>`;
       html += `<td>${memoCell(e, "mic", opts)}</td>`;
     }
@@ -181,7 +188,8 @@
     let n = 0;
     if (tabs.kamite) n += 1;
     if (tabs.shimote) n += 1;
-    if (tabs.sound) n += 2;
+    if (tabs.lighting) n += 4;
+    if (tabs.sound) n += 3;
     return n;
   }
 
@@ -196,6 +204,22 @@
       return `<div class="memo-line" data-memo-open="${e.id}:${field}">${esc(firstLine(val)) || '<span style="color:var(--text-2);">タップして入力</span>'}</div>`;
     }
     return `<textarea class="memo-textarea" data-memo-field="${field}" data-id="${e.id}" rows="2" placeholder="メモを入力…">${esc(val)}</textarea>`;
+  }
+
+  function flagCell(e, field, label, tgl) {
+    return `<td><button class="toggle-btn ${tgl} ${e[field] ? "active" : ""}" data-flag="${field}" data-id="${e.id}">${label}</button></td>`;
+  }
+
+  /** 行ごとの幕間/アリーナ/作業灯/団体司会ボタンのクリックを受ける（tbody に1回だけ呼ぶ） */
+  function bindFlags(container) {
+    container.addEventListener("click", (ev) => {
+      const b = ev.target.closest("[data-flag]");
+      if (!b) return;
+      global.RB.Store.update((s) => {
+        const e = s.events.find((x) => x.id === b.dataset.id);
+        if (e) e[b.dataset.flag] = !e[b.dataset.flag];
+      });
+    });
   }
 
   function curtainButtons(e) {
@@ -220,7 +244,9 @@
     `;
     if (tabs.kamite) html += `<th style="width:180px;">上手メモ</th>`;
     if (tabs.shimote) html += `<th style="width:150px;">緞帳（司会）</th>`;
-    if (tabs.sound) html += `<th style="width:160px;">音源</th><th style="width:160px;">マイク</th>`;
+    if (tabs.lighting)
+      html += `<th style="width:160px;">照明メモ</th><th style="width:70px;">幕間</th><th style="width:78px;">アリーナ</th><th style="width:70px;">作業灯</th>`;
+    if (tabs.sound) html += `<th style="width:84px;">団体司会</th><th style="width:160px;">音源</th><th style="width:160px;">マイク</th>`;
     html += `<th style="width:120px;"></th>`;
     return html;
   }
@@ -232,5 +258,6 @@
     renderFullRow,
     techHeaderCells,
     countExtraCols,
+    bindFlags,
   };
 })(window);

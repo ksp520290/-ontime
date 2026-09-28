@@ -121,22 +121,21 @@
       .reduce((sum, e) => sum + (e.duration || 0), 0);
   }
 
-  /** 現在ロード中イベントの「まだ確定していない」押し/巻き寄与分（秒、+behind/-ahead） */
-  function liveContribution(state) {
-    const timing = computeTiming(state);
-    if (!timing.event) return 0;
-    const addedTime = state.playback.addedTime || 0;
-    const overtimeExtra = timing.overtime ? -timing.remaining : 0;
-    return addedTime + overtimeExtra;
+  /** 押し/巻きは「次へ」を押した時点の（経過時間 − 所要時間）だけを累積する。ライブ分は含めない。 */
+  function liveContribution() {
+    return 0;
   }
 
-  /** ショー全体の現在の押し/巻き（確定分 + ライブ寄与分） */
+  /** ショー全体の現在の押し/巻き（「次へ」で確定した累積分） */
   function currentShowOffset(state) {
-    return (state.playback.showOffset || 0) + liveContribution(state);
+    return state.playback.showOffset || 0;
   }
 
+  /** 「次へ」押下時：経過 − 所要時間（＋/−調整込み）を累積。+超過(押し) / -巻き */
   function finalizeOffset(state) {
-    state.playback.showOffset = (state.playback.showOffset || 0) + liveContribution(state);
+    const t = computeTiming(state);
+    if (!t.event || state.playback.state === "stop") return;
+    state.playback.showOffset = (state.playback.showOffset || 0) + (t.elapsed - t.duration);
   }
 
   // ---------------- 再生コントロール ----------------
@@ -168,7 +167,6 @@
   }
 
   function stop(state) {
-    if (state.playback.loadedId) finalizeOffset(state);
     state.playback.state = "stop";
     state.playback.startedAt = null;
     state.playback.elapsedBeforeStart = 0;
@@ -180,14 +178,13 @@
   }
 
   function playEvent(state, id) {
-    if (state.playback.loadedId && state.playback.loadedId !== id) finalizeOffset(state);
     load_(state, id);
     state.playback.state = "play";
     state.playback.startedAt = Date.now();
   }
 
   function advance(state) {
-    if (state.playback.loadedId) finalizeOffset(state);
+    finalizeOffset(state);
     const nxt = nextPlayable(state, state.playback.loadedId);
     if (nxt) {
       load_(state, nxt.id);

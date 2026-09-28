@@ -41,8 +41,10 @@
       mcMic: false, // 司会マイク ON/OFF
     },
     schedule: {
-      notes: "", // 予定表：連携内容
+      notes: "", // （旧）連携内容。coop へ移行済み
       todos: [], // 予定表：todoリスト [{id, text, done}]
+      calendar: {}, // 予定表：{ "YYYY-MM-DD": {title, body} }
+      coop: [], // 連携事項 [{id, owner, text}]
     },
   });
 
@@ -64,10 +66,19 @@
       message: Object.assign(base.message, parsed.message),
       lighting: Object.assign(base.lighting, parsed.lighting),
       sound: Object.assign(base.sound, parsed.sound),
-      schedule: {
-        notes: (parsed.schedule && parsed.schedule.notes) || "",
-        todos: (parsed.schedule && Array.isArray(parsed.schedule.todos) && parsed.schedule.todos) || [],
-      },
+      schedule: migrateSchedule(parsed.schedule),
+    };
+  }
+
+  function migrateSchedule(sc) {
+    sc = sc || {};
+    const coop = Array.isArray(sc.coop) ? sc.coop : [];
+    if (!coop.length && sc.notes) coop.push({ id: uid("c"), owner: "未分類", text: sc.notes }); // 旧メモを移行
+    return {
+      notes: "",
+      todos: Array.isArray(sc.todos) ? sc.todos : [],
+      calendar: sc.calendar && typeof sc.calendar === "object" ? sc.calendar : {},
+      coop,
     };
   }
 
@@ -87,6 +98,11 @@
         memoKamite: "", // 上手：メモ（複数行）
         soundSource: "", // 音響：音源（複数行）
         mic: "", // 音響：マイク（複数行）
+        memoLighting: "", // 照明：メモ（複数行）
+        lightIntermission: false, // 照明：幕間
+        lightArena: false, // 照明：アリーナ
+        lightWork: false, // 照明：作業灯
+        groupMc: false, // 音響：団体司会
         reviewNote: "", // 振り返り
       },
       e

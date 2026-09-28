@@ -3,17 +3,25 @@
    =========================================================== */
 
 (function (global) {
-  // key: ファイル名 / label / prod: 本番モードのページかどうか
+  // group: home | prod | other。ext:true は新しいタブで開く外部リンク
+  const BROADCAST_URL = "https://ksp520290.github.io/broadcastGroup/";
   const PAGES = [
-    { href: "index.html", label: "ホーム", prod: false, always: true },
-    { href: "rundown-view.html", label: "進行表", prod: true },
-    { href: "operator.html", label: "オペレーター", prod: true },
-    { href: "timer.html", label: "タイマー表示", prod: true },
-    { href: "backstage.html", label: "バックステージ", prod: true },
-    { href: "technician.html", label: "技術者用", prod: true },
-    { href: "schedule.html", label: "予定表", prod: false },
-    { href: "editor.html", label: "進行表エディタ", prod: false },
-    { href: "retrospective.html", label: "振り返り", prod: false },
+    { href: "index.html", label: "ホーム", group: "home", prod: false, always: true },
+    { href: "rundown-view.html", label: "進行表", group: "prod", prod: true },
+    { href: "operator.html", label: "オペレーター", group: "prod", prod: true },
+    { href: "timer.html", label: "タイマー表示", group: "prod", prod: true },
+    { href: "backstage.html", label: "バックステージ", group: "prod", prod: true },
+    { href: "technician.html", label: "技術者用", group: "prod", prod: true },
+    { href: BROADCAST_URL, label: "照明・音響用 ↗", group: "prod", prod: true, ext: true },
+    { href: "schedule.html", label: "予定表", group: "other", prod: false },
+    { href: "editor.html", label: "進行表エディタ", group: "other", prod: false },
+    { href: "rehearsal.html", label: "机上リハ", group: "other", prod: false },
+    { href: "retrospective.html", label: "振り返り", group: "other", prod: false },
+  ];
+  const GROUPS = [
+    { key: "home", label: "ホーム", first: "index.html" },
+    { key: "prod", label: "本番モード", first: "rundown-view.html" },
+    { key: "other", label: "その他", first: "schedule.html" },
   ];
 
   function currentFile() {
@@ -23,6 +31,8 @@
 
   function renderTopbar(mountEl) {
     const cur = currentFile();
+    const curPage = PAGES.find((p) => p.href === cur);
+    const curGroup = curPage ? curPage.group : "home";
     const Store = global.RB.Store;
 
     const bar = document.createElement("div");
@@ -30,25 +40,35 @@
     bar.innerHTML = `
       <div class="brand"><span class="dot"></span>Runtime&nbsp;Board</div>
       <div class="project-name" id="rb-project-name">-</div>
-      <nav class="topnav" id="rb-topnav"></nav>
+      <nav class="topnav" id="rb-groups"></nav>
     `;
+    const sub = document.createElement("div");
+    sub.className = "subbar";
+    sub.innerHTML = `<nav class="topnav" id="rb-topnav"></nav>`;
     mountEl.appendChild(bar);
-    const navEl = bar.querySelector("#rb-topnav");
+    mountEl.appendChild(sub);
+    const groupEl = bar.querySelector("#rb-groups");
+    const navEl = sub.querySelector("#rb-topnav");
 
     function renderLinks(state) {
       const pm = state.meta && state.meta.productionMode;
-      navEl.innerHTML = PAGES.filter((p) => !pm || p.prod || p.always)
+      // 3つのグループタブ（本番モード中は「その他」を隠して編集系ロックを表示）
+      groupEl.innerHTML = GROUPS.filter((g) => !(pm && g.key === "other"))
+        .map((g) => `<a href="${g.first}" class="${g.key === curGroup ? "active" : ""}">${g.label}</a>`)
+        .join("");
+      if (pm) groupEl.innerHTML += `<span class="badge" title="本番モード中は編集系画面がロックされています" style="margin-left:6px;"><span class="dot"></span>🔒 編集系ロック中</span>`;
+
+      // 選択中グループ内のモードをすべて表示（本番モードグループは全画面が並ぶ）
+      const items = PAGES.filter((p) => p.group === curGroup);
+      sub.style.display = curGroup === "home" ? "none" : "";
+      navEl.innerHTML = items
         .map((p) => {
           const active = p.href === cur ? "active" : "";
-          return `<a href="${p.href}" class="${active}">${p.label}</a>`;
+          return p.ext
+            ? `<a href="${p.href}" target="_blank" rel="noopener noreferrer" class="${active}">${p.label}</a>`
+            : `<a href="${p.href}" class="${active}">${p.label}</a>`;
         })
         .join("");
-      if (pm) {
-        const locked = PAGES.filter((p) => !p.prod && !p.always);
-        if (locked.length) {
-          navEl.innerHTML += `<span class="badge" title="本番モード中は編集系画面がロックされています" style="margin-left:6px;"><span class="dot"></span>🔒 編集系ロック中</span>`;
-        }
-      }
     }
 
     Store.subscribe((state) => {
