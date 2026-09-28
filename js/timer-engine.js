@@ -1,7 +1,7 @@
 /* ===========================================================
    timer-engine.js
-   再生状態（play / pause / stop）から現在の経過・残り時間を
-   計算し、進行表の開始・終了時刻（スケジュール）を組み立てる。
+   再生状態から経過・残り時間を計算し、進行表のスケジュール、
+   キュー番号、押し／巻き（showOffset）を組み立てる。
    =========================================================== */
 
 (function (global) {
@@ -11,7 +11,6 @@
     return String(Math.floor(n)).padStart(2, "0");
   }
 
-  /** 秒 -> "HH:MM:SS" または "MM:SS"。符号付きにも対応（マイナスは超過時間） */
   function formatSeconds(totalSeconds, opts) {
     opts = opts || {};
     const sign = totalSeconds < 0 ? "-" : "";
@@ -25,7 +24,18 @@
     return `${sign}${pad(m)}:${pad(sec)}`;
   }
 
-  /** "HH:MM" を基準に、当日の epoch ms を返す */
+  /** 押し／巻きの表示用フォーマット。+は押し、-は巻き。 */
+  function formatOffset(totalSeconds) {
+    const s = Math.round(totalSeconds);
+    const abs = Math.abs(s);
+    const m = Math.floor(abs / 60);
+    const sec = abs % 60;
+    const txt = (m > 0 ? `${m}分` : "") + `${sec}秒`;
+    if (Math.abs(s) < 1) return { label: "定刻どおり", cls: "flat", text: "±0" };
+    if (s > 0) return { label: `${txt} 押しています`, cls: "behind", text: "+" + txt };
+    return { label: `${txt} 巻いています`, cls: "ahead", text: "-" + txt };
+  }
+
   function baseTimeToday(hhmm) {
     const [h, m] = (hhmm || "09:00").split(":").map((n) => parseInt(n, 10) || 0);
     const d = new Date();
@@ -38,11 +48,6 @@
     return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
   }
 
-  /**
-   * 進行表全体のスケジュール（各イベントの開始・終了予定時刻）を計算する。
-   * skip されたイベントは所要時間を消費しない。
-   * 戻り値: Map<eventId, {start, end}>  (epoch ms)
-   */
   function buildSchedule(state) {
     const map = new Map();
     let cursor = baseTimeToday(state.project.startTime);
@@ -58,6 +63,25 @@
       cursor = end;
     }
     return map;
+  }
+
+  /** キュー番号は type==='event' のみに連番で振る。mc / block は対象外。 */
+  function buildCueNumbers(state) {
+    const map = new Map();
+    let n = 0;
+    for (const e of state.events) {
+      if (e.type === "event") {
+        n += 1;
+        map.set(e.id, n);
+      }
+    }
+    return map;
+  }
+
+  function cueLabel(state, ev, cueMap) {
+    if (ev.type === "event") return String((cueMap || buildCueNumbers(state)).get(ev.id) || "");
+    if (ev.type === "mc") return "-";
+    return "";
   }
 
   function playableEvents(state) {
@@ -76,12 +100,6 @@
     return list[idx + 1] || null;
   }
 
-  /**
-   * 現在ロードされているイベントの経過・残り秒数を返す。
-   * stop -> elapsed 0 / remaining = duration
-   * play -> Date.now() から計算（他タブでも同じ結果になる）
-   * pause -> 停止時点で固定
-   */
   function computeTiming(state) {
     const pb = state.playback;
     const ev = findEvent(state, pb.loadedId);
@@ -101,6 +119,24 @@
     return playableEvents(state)
       .filter((e) => !e.skip)
       .reduce((sum, e) => sum + (e.duration || 0), 0);
+  }
+
+  /** 現在ロード中イベントの「まだ確定していない」押し/巻き寄与分（秒、+behind/-ahead） */
+  function liveContribution(state) {
+    const timing = computeTiming(state);
+    if (!timing.event) return 0;
+    const addedTime = state.playback.addedTime || 0;
+    const overtimeExtra = timing.overtime ? -timing.remaining : 0;
+    return addedTime + overtimeExtra;
+  }
+
+  /** ショー全体の現在の押し/巻き（確定分 + ライブ寄与分） */
+  function currentShowOffset(state) {
+    return (state.playback.showOffset || 0) + liveContribution(state);
+  }
+
+  function finalizeOffset(state) {
+    state.playback.showOffset = (state.playback.showOffset || 0) + liveContribution(state);
   }
 
   // ---------------- 再生コントロール ----------------
@@ -132,6 +168,7 @@
   }
 
   function stop(state) {
+    if (state.playback.loadedId) finalizeOffset(state);
     state.playback.state = "stop";
     state.playback.startedAt = null;
     state.playback.elapsedBeforeStart = 0;
@@ -143,15 +180,25 @@
   }
 
   function playEvent(state, id) {
+    if (state.playback.loadedId && state.playback.loadedId !== id) finalizeOffset(state);
     load_(state, id);
     state.playback.state = "play";
     state.playback.startedAt = Date.now();
   }
 
   function advance(state) {
+    if (state.playback.loadedId) finalizeOffset(state);
     const nxt = nextPlayable(state, state.playback.loadedId);
-    if (nxt) playEvent(state, nxt.id);
-    else stop(state);
+    if (nxt) {
+      load_(state, nxt.id);
+      state.playback.state = "play";
+      state.playback.startedAt = Date.now();
+    } else {
+      state.playback.state = "stop";
+      state.playback.startedAt = null;
+      state.playback.elapsedBeforeStart = 0;
+      state.playback.addedTime = 0;
+    }
   }
 
   function addTime(state, deltaSeconds) {
@@ -161,14 +208,18 @@
   global.RB = global.RB || {};
   global.RB.Timer = {
     formatSeconds,
+    formatOffset,
     formatClock,
     baseTimeToday,
     buildSchedule,
+    buildCueNumbers,
+    cueLabel,
     playableEvents,
     findEvent,
     nextPlayable,
     computeTiming,
     totalRuntime,
+    currentShowOffset,
     play,
     pause,
     stop,
