@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Runtime Board — 技術者用</title>
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<div class="app">
+  <div id="nav-mount"></div>
+
+  <main>
+    <div class="container">
+
+      <div class="tab-select" id="tab-select">
+        <button data-tab="basic" class="active" disabled title="常に表示されます">基本</button>
+        <button data-tab="kamite">上手</button>
+        <button data-tab="shimote">下手</button>
+        <button data-tab="lighting">照明</button>
+        <button data-tab="sound">音響</button>
+      </div>
+
+      <div class="tech-toolbar" id="lighting-toolbar" style="display:none;">
+        <span class="group-label">照明:</span>
+        <button class="toggle-btn tgl-violet" data-light="intermission">幕間</button>
+        <button class="toggle-btn tgl-blue" data-light="arena">アリーナ</button>
+        <button class="toggle-btn tgl-amber" data-light="worklight">作業灯</button>
+      </div>
+      <div class="tech-toolbar" id="sound-toolbar" style="display:none;">
+        <span class="group-label">音響:</span>
+        <button class="toggle-btn tgl-red" id="btn-mc-mic">司会</button>
+      </div>
+
+      <div class="toolbar">
+        <span class="badge on-air" id="now-badge"><span class="dot"></span><span id="now-badge-text">現在: —</span></span>
+        <div class="spacer"></div>
+        <span class="badge"><span class="dot"></span><span id="hdr-total">合計 00:00</span></span>
+      </div>
+
+      <div class="panel">
+        <table class="rundown" id="rundown-table">
+          <thead><tr id="head-row"></tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+        <div class="empty-hint" id="empty-hint" style="display:none;">進行表がまだありません。</div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script src="js/storage.js"></script>
+<script src="js/timer-engine.js"></script>
+<script src="js/sync.js"></script>
+<script src="js/nav.js"></script>
+<script src="js/rundown-render.js"></script>
+<script src="js/util.js"></script>
+<script>
+  const { Store, Timer, Rundown } = RB;
+  const { debounce } = RB.Util;
+
+  RB.Nav.renderTopbar(document.getElementById("nav-mount"));
+
+  const rowsEl = document.getElementById("rows");
+  const headRow = document.getElementById("head-row");
+  const emptyHint = document.getElementById("empty-hint");
+  const tapOpenIds = new Set();
+
+  const tabs = { kamite: false, shimote: false, lighting: false, sound: false };
+
+  document.querySelectorAll("#tab-select button[data-tab]:not([disabled])").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const key = btn.dataset.tab;
+      tabs[key] = !tabs[key];
+      btn.classList.toggle("active", tabs[key]);
+      document.getElementById("lighting-toolbar").style.display = tabs.lighting ? "flex" : "none";
+      document.getElementById("sound-toolbar").style.display = tabs.sound ? "flex" : "none";
+      render(Store.getState());
+    });
+  });
+
+  function fieldUpdate(id, key, value) {
+    Store.update((s) => {
+      const ev = s.events.find((e) => e.id === id);
+      if (ev) ev[key] = value;
+    });
+  }
+
+  function render(state) {
+    headRow.innerHTML = Rundown.techHeaderCells(tabs, false);
+
+    const schedule = Timer.buildSchedule(state);
+    const cueMap = Timer.buildCueNumbers(state);
+    const total = Timer.totalRuntime(state);
+    document.getElementById("hdr-total").textContent = "合計 " + Timer.formatSeconds(total, { forceHours: total >= 3600 });
+    emptyHint.style.display = state.events.length ? "none" : "block";
+
+    const current = Timer.findEvent(state, state.playback.loadedId);
+    document.getElementById("now-badge-text").textContent = "現在: " + (current ? current.title || "（無題）" : "—");
+    document.getElementById("now-badge").classList.toggle("on-air", state.playback.state === "play");
+
+    rowsEl.innerHTML = state.events
+      .map((e, idx) =>
+        Rundown.renderFullRow(e, idx, {
+          schedule,
+          cueMap,
+          editable: false,
+          showActions: true,
+          skipOnly: true,
+          tabs,
+          currentId: state.playback.loadedId,
+          tapOpenIds,
+        })
+      )
+      .join("");
+
+    document.getElementById("btn-mc-mic").classList.toggle("active", !!state.sound.mcMic);
+    document.getElementById("lighting-toolbar").querySelectorAll("[data-light]").forEach((b) => {
+      b.classList.toggle("active", !!state.lighting[b.dataset.light]);
+    });
+  }
+
+  Store.subscribe(render);
+  setInterval(() => render(Store.getState()), 1000);
+
+  const debouncedMemo = debounce((id, field, value) => fieldUpdate(id, field, value), 300);
+
+  rowsEl.addEventListener("input", (ev) => {
+    const t = ev.target;
+    if (t.dataset.memoField) debouncedMemo(t.dataset.id, t.dataset.memoField, t.value);
+  });
+
+  rowsEl.addEventListener("click", (ev) => {
+    const memoOpen = ev.target.closest("[data-memo-open]");
+    if (memoOpen) {
+      tapOpenIds.add(memoOpen.dataset.memoOpen);
+      render(Store.getState());
+      return;
+    }
+    const curtainBtn = ev.target.closest("[data-curtain]");
+    if (curtainBtn) {
+      fieldUpdate(curtainBtn.dataset.id, "curtain", curtainBtn.dataset.curtain);
+      return;
+    }
+    const btn = ev.target.closest("button[data-act]");
+    if (!btn) return;
+    const id = btn.dataset.id;
+    const act = btn.dataset.act;
+    if (act === "skip") {
+      Store.update((s) => {
+        const ev2 = s.events.find((e) => e.id === id);
+        if (ev2) ev2.skip = !ev2.skip;
+      });
+    }
+    // 技術者用画面では並べ替え・削除は行わない想定（進行表エディタで行う）
+  });
+
+  rowsEl.addEventListener(
+    "focusout",
+    (ev) => {
+      const ta = ev.target;
+      if (!ta.dataset || !ta.dataset.memoField) return;
+      const key = ta.dataset.id + ":" + ta.dataset.memoField;
+      setTimeout(() => {
+        tapOpenIds.delete(key);
+        render(Store.getState());
+      }, 150);
+    },
+    true
+  );
+
+  document.getElementById("lighting-toolbar").addEventListener("click", (ev) => {
+    const b = ev.target.closest("[data-light]");
+    if (!b) return;
+    Store.update((s) => (s.lighting[b.dataset.light] = !s.lighting[b.dataset.light]));
+  });
+  document.getElementById("btn-mc-mic").addEventListener("click", () => {
+    Store.update((s) => (s.sound.mcMic = !s.sound.mcMic));
+  });
+</script>
+</body>
+</html>

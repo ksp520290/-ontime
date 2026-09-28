@@ -44,7 +44,13 @@
             <div class="next-preview" id="next-preview">次: —</div>
           </div>
 
-          <div class="panel" style="margin-top:16px;">
+          <div class="row" style="justify-content:center;">
+            <div class="offset-badge flat" id="offset-badge">
+              <span>⏱</span><span class="val" id="offset-val">±0</span><span id="offset-label">定刻どおり</span>
+            </div>
+          </div>
+
+          <div class="panel" style="margin-top:6px;">
             <div class="panel-head"><h2>ステージ・バックステージへのメッセージ</h2></div>
             <div class="panel-body">
               <div class="field">
@@ -65,8 +71,21 @@
 
         <!-- 右: キューシート -->
         <div class="panel">
-          <div class="panel-head"><h2>キューシート</h2></div>
+          <div class="panel-head"><h2>キューシート（司会を含む全項目）</h2></div>
           <table class="rundown">
+            <thead>
+              <tr>
+                <th style="width:26px;">キュー</th>
+                <th style="width:16px;"></th>
+                <th>タイトル / 副題</th>
+                <th style="width:100px;">出演</th>
+                <th style="width:130px;">メモ</th>
+                <th style="width:60px;">時間</th>
+                <th style="width:56px;">開始</th>
+                <th style="width:56px;">終了</th>
+                <th style="width:140px;"></th>
+              </tr>
+            </thead>
             <tbody id="cue-rows"></tbody>
           </table>
           <div class="empty-hint" id="empty-hint" style="display:none;">
@@ -81,10 +100,12 @@
 
 <script src="js/storage.js"></script>
 <script src="js/timer-engine.js"></script>
+<script src="js/sync.js"></script>
 <script src="js/nav.js"></script>
+<script src="js/rundown-render.js"></script>
 <script src="js/util.js"></script>
 <script>
-  const { Store, Timer } = RB;
+  const { Store, Timer, Rundown } = RB;
   const { escapeHtml } = RB.Util;
 
   RB.Nav.renderTopbar(document.getElementById("nav-mount"));
@@ -92,40 +113,41 @@
   const cueRows = document.getElementById("cue-rows");
   const emptyHint = document.getElementById("empty-hint");
 
-  function statusOf(state, ev) {
-    if (state.playback.loadedId !== ev.id) return "";
-    return state.playback.state === "play" ? "playing" : "loaded";
-  }
-
   function renderCueSheet(state) {
+    const schedule = Timer.buildSchedule(state);
+    const cueMap = Timer.buildCueNumbers(state);
     const playable = Timer.playableEvents(state);
     emptyHint.style.display = playable.length ? "none" : "block";
 
     cueRows.innerHTML = state.events
-      .map((e) => {
-        if (e.type === "block") {
-          return `<tr class="block-row"><td colspan="4">${escapeHtml(e.title)}</td></tr>`;
-        }
-        const cls = ["event-row", statusOf(state, e), e.skip ? "skipped" : ""].join(" ").trim();
-        return `
-          <tr class="${cls}" data-id="${e.id}">
-            <td style="width:34px;"><span class="colour-chip" style="background:${e.colour || "#333"}"></span></td>
-            <td>
-              <div style="font-weight:600;">${escapeHtml(e.title) || "（無題）"}</div>
-              <div style="font-size:11.5px;color:var(--text-2);">${escapeHtml(e.presenter)}</div>
-            </td>
-            <td class="mono" style="width:64px;color:var(--text-1);">${Timer.formatSeconds(e.duration)}</td>
-            <td style="width:76px;text-align:right;">
+      .map((e, idx) => {
+        const row = Rundown.renderFullRow(e, idx, {
+          schedule,
+          cueMap,
+          editable: false,
+          showActions: true,
+          tabs: {},
+          currentId: state.playback.loadedId,
+          tapOpenIds: new Set(),
+        });
+        if (e.type === "block") return row;
+        const status = state.playback.loadedId === e.id ? (state.playback.state === "play" ? "playing" : "loaded") : "";
+        return row.replace('class="event-row', `class="event-row ${status}`).replace(
+          "</td></tr>",
+          `</td>
+            <div class="row" style="justify-content:flex-end;gap:4px;margin-top:2px;">
               <button class="icon-btn" data-act="load" data-id="${e.id}" title="ロード">⏏</button>
-              <button class="icon-btn" data-act="play" data-id="${e.id}" title="このキューから再生">▶</button>
-            </td>
-          </tr>`;
+              <button class="icon-btn" data-act="playnow" data-id="${e.id}" title="このキューから再生">▶</button>
+            </div>
+          </td></tr>`
+        );
       })
       .join("");
   }
 
   function updateTimerDisplay(state) {
     const timing = Timer.computeTiming(state);
+    const cueMap = Timer.buildCueNumbers(state);
     const badgeText = { stop: "停止中", play: "オンエア", pause: "一時停止中" }[state.playback.state];
     document.getElementById("pb-badge-text").textContent = badgeText;
     document.getElementById("pb-badge").classList.toggle("on-air", state.playback.state === "play");
@@ -141,20 +163,15 @@
       bigTimer.className = "big-timer idle";
       sub.textContent = "所要時間 —";
     } else {
-      document.getElementById("now-cue").textContent = "CUE " + (timing.event.cue || "—");
+      const cue = timing.event.type === "mc" ? "-" : cueMap.get(timing.event.id) || "—";
+      document.getElementById("now-cue").textContent = "CUE " + cue;
       document.getElementById("now-title").textContent = timing.event.title || "（無題）";
       document.getElementById("now-sub").textContent = timing.event.subtitle || timing.event.presenter || "\u00A0";
 
       bigTimer.textContent = Timer.formatSeconds(timing.remaining, { forceHours: timing.duration >= 3600 });
       bigTimer.className =
         "big-timer " +
-        (state.playback.state === "stop"
-          ? "idle"
-          : timing.overtime
-          ? "danger"
-          : timing.remaining < 30
-          ? "warn"
-          : "");
+        (state.playback.state === "stop" ? "idle" : timing.overtime ? "danger" : timing.remaining < 30 ? "warn" : "");
       sub.textContent = "所要時間 " + Timer.formatSeconds(timing.duration);
     }
 
@@ -165,6 +182,14 @@
 
     document.getElementById("btn-play").disabled = state.playback.state === "play";
     document.getElementById("btn-pause").disabled = state.playback.state !== "play";
+
+    // 押し / 巻き
+    const offsetSec = Timer.currentShowOffset(state);
+    const fo = Timer.formatOffset(offsetSec);
+    const badge = document.getElementById("offset-badge");
+    badge.className = "offset-badge " + fo.cls;
+    document.getElementById("offset-val").textContent = fo.text;
+    document.getElementById("offset-label").textContent = fo.label;
   }
 
   function render(state) {
@@ -177,10 +202,35 @@
 
   cueRows.addEventListener("click", (ev) => {
     const btn = ev.target.closest("button[data-act]");
-    if (!btn) return;
-    const id = btn.dataset.id;
-    if (btn.dataset.act === "load") Store.update((s) => Timer.loadEvent(s, id));
-    if (btn.dataset.act === "play") Store.update((s) => Timer.playEvent(s, id));
+    if (btn) {
+      const id = btn.dataset.id;
+      if (btn.dataset.act === "load") Store.update((s) => Timer.loadEvent(s, id));
+      if (btn.dataset.act === "playnow") Store.update((s) => Timer.playEvent(s, id));
+      if (btn.dataset.act === "skip")
+        Store.update((s) => {
+          const e = s.events.find((x) => x.id === id);
+          if (e) e.skip = !e.skip;
+        });
+      if (btn.dataset.act === "del") {
+        if (confirm("この行を削除しますか？")) {
+          Store.update((s) => {
+            s.events = s.events.filter((x) => x.id !== id);
+            if (s.playback.loadedId === id) {
+              s.playback.loadedId = null;
+              s.playback.state = "stop";
+            }
+          });
+        }
+      }
+      if (btn.dataset.act === "up" || btn.dataset.act === "down") {
+        Store.update((s) => {
+          const idx = s.events.findIndex((x) => x.id === id);
+          if (btn.dataset.act === "up" && idx > 0) [s.events[idx - 1], s.events[idx]] = [s.events[idx], s.events[idx - 1]];
+          if (btn.dataset.act === "down" && idx < s.events.length - 1)
+            [s.events[idx + 1], s.events[idx]] = [s.events[idx], s.events[idx + 1]];
+        });
+      }
+    }
   });
 
   document.getElementById("btn-play").addEventListener("click", () => Store.update((s) => Timer.play(s)));
@@ -189,7 +239,7 @@
   document.getElementById("btn-next").addEventListener("click", () => Store.update((s) => Timer.advance(s)));
   document.getElementById("btn-prev").addEventListener("click", () => {
     Store.update((s) => {
-      const playable = Timer.playableEvents(s);
+      const playable = Timer.playableEvents(s).filter((e) => !e.skip);
       const idx = playable.findIndex((e) => e.id === s.playback.loadedId);
       const prev = idx > 0 ? playable[idx - 1] : playable[0];
       if (prev) Timer.loadEvent(s, prev.id);

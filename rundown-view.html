@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Runtime Board — 進行表</title>
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<div class="app">
+  <div id="nav-mount"></div>
+  <main>
+    <div class="container">
+      <div class="toolbar">
+        <span class="badge"><span class="dot"></span><span id="hdr-total">合計 00:00</span></span>
+        <div class="spacer"></div>
+        <span style="color:var(--text-2);font-size:12px;">司会の副題はタイトルをクリックすると表示されます</span>
+      </div>
+      <div class="panel">
+        <table class="rundown compact">
+          <thead>
+            <tr>
+              <th style="width:26px;">キュー</th>
+              <th style="width:16px;"></th>
+              <th>タイトル</th>
+              <th style="width:62px;">開始</th>
+              <th style="width:62px;">終了</th>
+            </tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+        <div class="empty-hint" id="empty-hint" style="display:none;">進行表がまだありません。</div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script src="js/storage.js"></script>
+<script src="js/timer-engine.js"></script>
+<script src="js/sync.js"></script>
+<script src="js/nav.js"></script>
+<script src="js/rundown-render.js"></script>
+<script src="js/util.js"></script>
+<script>
+  const { Store, Timer } = RB;
+  RB.Nav.renderTopbar(document.getElementById("nav-mount"));
+
+  const rowsEl = document.getElementById("rows");
+  const emptyHint = document.getElementById("empty-hint");
+  const expanded = new Set();
+
+  function render(state) {
+    const schedule = Timer.buildSchedule(state);
+    const cueMap = Timer.buildCueNumbers(state);
+    const total = Timer.totalRuntime(state);
+    document.getElementById("hdr-total").textContent = "合計 " + Timer.formatSeconds(total, { forceHours: total >= 3600 });
+    emptyHint.style.display = state.events.length ? "none" : "block";
+
+    rowsEl.innerHTML = state.events
+      .map((e, idx) => RB.Rundown.renderCompactRow(e, idx, { schedule, cueMap, expandedIds: expanded, reviewMode: false }))
+      .join("");
+  }
+
+  Store.subscribe(render);
+
+  rowsEl.addEventListener("click", (ev) => {
+    const t = ev.target.closest("[data-toggle-mc]");
+    if (!t) return;
+    const id = t.dataset.toggleMc;
+    if (expanded.has(id)) expanded.delete(id);
+    else expanded.add(id);
+    render(Store.getState());
+  });
+</script>
+</body>
+</html>

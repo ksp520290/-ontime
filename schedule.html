@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Runtime Board — 予定表</title>
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<div class="app">
+  <div id="nav-mount"></div>
+  <main>
+    <div class="container" id="page-content">
+      <div class="grid-2">
+        <div class="panel">
+          <div class="panel-head"><h2>連携内容</h2></div>
+          <div class="panel-body">
+            <textarea id="notes" rows="16" placeholder="関係部署との連携事項、共有事項、注意点などを自由に記入してください…" style="width:100%;"></textarea>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><h2>Todoリスト</h2></div>
+          <div class="panel-body">
+            <div class="row" style="margin-bottom:10px;">
+              <input type="text" id="todo-input" placeholder="やることを入力して追加…" style="flex:1;" />
+              <button class="primary" id="todo-add">追加</button>
+            </div>
+            <div id="todo-list"></div>
+            <div class="empty-hint" id="todo-empty" style="display:none;">タスクはまだありません。</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script src="js/storage.js"></script>
+<script src="js/timer-engine.js"></script>
+<script src="js/sync.js"></script>
+<script src="js/nav.js"></script>
+<script src="js/util.js"></script>
+<script>
+  const { Store } = RB;
+  const { debounce, escapeHtml } = RB.Util;
+
+  RB.Nav.renderTopbar(document.getElementById("nav-mount"));
+  if (RB.Nav.guardProductionMode(false)) {
+    document.getElementById("page-content").style.display = "none";
+  } else {
+    const notesEl = document.getElementById("notes");
+    const listEl = document.getElementById("todo-list");
+    const emptyEl = document.getElementById("todo-empty");
+
+    function render(state) {
+      if (document.activeElement !== notesEl) notesEl.value = state.schedule.notes || "";
+
+      const todos = state.schedule.todos || [];
+      emptyEl.style.display = todos.length ? "none" : "block";
+      listEl.innerHTML = todos
+        .map(
+          (t) => `
+        <div class="todo-item ${t.done ? "done" : ""}">
+          <input type="checkbox" data-id="${t.id}" data-act="toggle" ${t.done ? "checked" : ""} />
+          <span class="txt">${escapeHtml(t.text)}</span>
+          <button class="icon-btn warn" data-id="${t.id}" data-act="del">✕</button>
+        </div>`
+        )
+        .join("");
+    }
+
+    Store.subscribe(render);
+
+    const debouncedNotes = debounce((val) => {
+      Store.update((s) => (s.schedule.notes = val));
+    }, 300);
+    notesEl.addEventListener("input", () => debouncedNotes(notesEl.value));
+
+    function addTodo() {
+      const input = document.getElementById("todo-input");
+      const text = input.value.trim();
+      if (!text) return;
+      Store.update((s) => {
+        s.schedule.todos.push({ id: Store.uid("t"), text, done: false });
+      });
+      input.value = "";
+      input.focus();
+    }
+    document.getElementById("todo-add").addEventListener("click", addTodo);
+    document.getElementById("todo-input").addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter") addTodo();
+    });
+
+    listEl.addEventListener("click", (ev) => {
+      const t = ev.target.closest("[data-act]");
+      if (!t) return;
+      const id = t.dataset.id;
+      if (t.dataset.act === "del") {
+        Store.update((s) => {
+          s.schedule.todos = s.schedule.todos.filter((x) => x.id !== id);
+        });
+      }
+    });
+    listEl.addEventListener("change", (ev) => {
+      const t = ev.target;
+      if (t.dataset.act === "toggle") {
+        Store.update((s) => {
+          const item = s.schedule.todos.find((x) => x.id === t.dataset.id);
+          if (item) item.done = t.checked;
+        });
+      }
+    });
+  }
+</script>
+</body>
+</html>

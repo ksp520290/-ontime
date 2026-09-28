@@ -36,6 +36,7 @@
 
 <script src="js/storage.js"></script>
 <script src="js/timer-engine.js"></script>
+<script src="js/sync.js"></script>
 <script src="js/util.js"></script>
 <script>
   const { Store, Timer } = RB;
@@ -49,6 +50,7 @@
 
   function render(state) {
     const timing = Timer.computeTiming(state);
+    const cueMap = Timer.buildCueNumbers(state);
     const screen = document.getElementById("screen");
     const timerEl = document.getElementById("s-timer");
 
@@ -61,7 +63,8 @@
       document.getElementById("s-next").innerHTML = "&nbsp;";
       screen.className = "stage-screen";
     } else {
-      document.getElementById("s-cue").textContent = "CUE " + (timing.event.cue || "—");
+      const cue = timing.event.type === "mc" ? "-" : cueMap.get(timing.event.id) || "—";
+      document.getElementById("s-cue").textContent = "CUE " + cue;
       document.getElementById("s-title").textContent = timing.event.title || "（無題）";
       document.getElementById("s-sub").textContent = timing.event.subtitle || timing.event.presenter || "\u00A0";
 

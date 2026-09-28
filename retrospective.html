@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Runtime Board — 振り返り</title>
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<div class="app">
+  <div id="nav-mount"></div>
+  <main>
+    <div class="container" id="page-content">
+      <div class="toolbar">
+        <span class="badge"><span class="dot"></span><span id="hdr-total">合計 00:00</span></span>
+        <div class="spacer"></div>
+        <span style="color:var(--text-2);font-size:12px;">イベント・見出しをクリックすると振り返りメモが開きます（司会は📝アイコン）</span>
+      </div>
+      <div class="panel">
+        <table class="rundown compact">
+          <thead>
+            <tr>
+              <th style="width:26px;">キュー</th>
+              <th style="width:16px;"></th>
+              <th>タイトル</th>
+              <th style="width:62px;">開始</th>
+              <th style="width:62px;">終了</th>
+            </tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+        <div class="empty-hint" id="empty-hint" style="display:none;">進行表がまだありません。</div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script src="js/storage.js"></script>
+<script src="js/timer-engine.js"></script>
+<script src="js/sync.js"></script>
+<script src="js/nav.js"></script>
+<script src="js/rundown-render.js"></script>
+<script src="js/util.js"></script>
+<script>
+  const { Store, Timer } = RB;
+  const { debounce } = RB.Util;
+
+  RB.Nav.renderTopbar(document.getElementById("nav-mount"));
+  if (RB.Nav.guardProductionMode(false)) {
+    document.getElementById("page-content").style.display = "none";
+  } else {
+    const rowsEl = document.getElementById("rows");
+    const emptyHint = document.getElementById("empty-hint");
+    const expandedMc = new Set();
+    const openReview = new Set();
+
+    function render(state) {
+      const schedule = Timer.buildSchedule(state);
+      const cueMap = Timer.buildCueNumbers(state);
+      const total = Timer.totalRuntime(state);
+      document.getElementById("hdr-total").textContent = "合計 " + Timer.formatSeconds(total, { forceHours: total >= 3600 });
+      emptyHint.style.display = state.events.length ? "none" : "block";
+
+      rowsEl.innerHTML = state.events
+        .map((e, idx) =>
+          RB.Rundown.renderCompactRow(e, idx, {
+            schedule,
+            cueMap,
+            expandedIds: expandedMc,
+            reviewMode: true,
+            reviewIds: openReview,
+          })
+        )
+        .join("");
+    }
+
+    Store.subscribe(render);
+
+    const debouncedSave = debounce((id, value) => {
+      Store.update((s) => {
+        const ev = s.events.find((x) => x.id === id);
+        if (ev) ev.reviewNote = value;
+      });
+    }, 300);
+
+    rowsEl.addEventListener("click", (ev) => {
+      const mcToggle = ev.target.closest("[data-toggle-mc]");
+      if (mcToggle) {
+        const id = mcToggle.dataset.toggleMc;
+        expandedMc.has(id) ? expandedMc.delete(id) : expandedMc.add(id);
+        render(Store.getState());
+        return;
+      }
+      const reviewToggle = ev.target.closest(".rowclick-target");
+      if (reviewToggle) {
+        const id = reviewToggle.dataset.id;
+        openReview.has(id) ? openReview.delete(id) : openReview.add(id);
+        render(Store.getState());
+      }
+    });
+
+    rowsEl.addEventListener("input", (ev) => {
+      const t = ev.target;
+      if (t.dataset.reviewField) {
+        debouncedSave(t.dataset.reviewField, t.value);
+      }
+    });
+  }
+</script>
+</body>
+</html>

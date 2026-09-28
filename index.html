@@ -47,32 +47,100 @@
         </div>
       </div>
 
+      <!-- 本番モード ブロック -->
+      <div class="prod-block">
+        <div class="prod-block-head">
+          <label class="switch">
+            <input type="checkbox" id="toggle-production" />
+            <span class="slider"></span>
+          </label>
+          <div>
+            <h3>本番モード</h3>
+            <div class="desc">ONにすると、下記5画面のみ利用可能になり、進行表エディタ・予定表・振り返りはロックされます</div>
+          </div>
+        </div>
+        <div class="view-grid">
+          <a class="view-card" href="rundown-view.html">
+            <div class="tag">RUNDOWN</div>
+            <h3>進行表</h3>
+            <p>基本タブの内容のみを表示する閲覧用の進行表です。</p>
+          </a>
+          <a class="view-card" href="operator.html">
+            <div class="tag">OPERATOR</div>
+            <h3>オペレーター画面</h3>
+            <p>再生・一時停止・送り、時間の加減、押し／巻きの確認、メッセージ送信。</p>
+          </a>
+          <a class="view-card" href="timer.html" target="_blank" rel="noopener">
+            <div class="tag">STAGE / PUBLIC</div>
+            <h3>タイマー表示</h3>
+            <p>客席・登壇者向けの全画面タイマー表示です。</p>
+          </a>
+          <a class="view-card" href="backstage.html" target="_blank" rel="noopener">
+            <div class="tag">BACKSTAGE</div>
+            <h3>バックステージ画面</h3>
+            <p>現在・次の進行予定とメッセージをまとめた楽屋向け表示です。</p>
+          </a>
+          <a class="view-card" href="technician.html" target="_blank" rel="noopener">
+            <div class="tag">TECHNICIAN</div>
+            <h3>技術者用</h3>
+            <p>基本・上手・下手・照明・音響の各タブで現場情報を共有します。</p>
+          </a>
+        </div>
+      </div>
+
+      <div class="section-title">その他の画面</div>
       <div class="view-grid">
+        <a class="view-card" href="schedule.html">
+          <div class="tag">SCHEDULE</div>
+          <h3>予定表</h3>
+          <p>連携内容のメモとtodoリストを管理します。</p>
+        </a>
         <a class="view-card" href="editor.html">
           <div class="tag">EDITOR</div>
           <h3>進行表エディタ</h3>
-          <p>キュー・タイトル・所要時間・色分けを編集し、スケジュールを組み立てます。</p>
+          <p>進行表の作成・編集、印刷（PDF化）。基本・上手・下手・照明・音響タブに対応。</p>
         </a>
-        <a class="view-card" href="operator.html">
-          <div class="tag">OPERATOR</div>
-          <h3>オペレーター画面</h3>
-          <p>進行を再生・一時停止・送りし、時間の加減やメッセージ送信を行います。</p>
-        </a>
-        <a class="view-card" href="timer.html" target="_blank" rel="noopener">
-          <div class="tag">STAGE / PUBLIC</div>
-          <h3>タイマー表示（客席・登壇者用）</h3>
-          <p>全画面表示用の大型タイマー。別ウィンドウ・別画面での常時表示に向いています。</p>
-        </a>
-        <a class="view-card" href="backstage.html" target="_blank" rel="noopener">
-          <div class="tag">BACKSTAGE</div>
-          <h3>バックステージ画面</h3>
-          <p>現在と次の登壇予定、伝達メッセージをまとめた楽屋・控室向け表示です。</p>
+        <a class="view-card" href="retrospective.html">
+          <div class="tag">RETROSPECTIVE</div>
+          <h3>振り返り</h3>
+          <p>各イベント・各ブロックをクリックして振り返りメモを記入できます。</p>
         </a>
       </div>
 
       <hr />
 
-      <div class="toolbar">
+      <div class="panel">
+        <div class="panel-head"><h2>リアルタイム同期設定</h2></div>
+        <div class="panel-body">
+          <p style="color:var(--text-1);font-size:12.5px;margin-top:0;">
+            同一ブラウザの複数タブ／ウィンドウ間は、設定なしで自動的にほぼ遅延ゼロで同期されます。
+            別の端末（別PC・別タブレットなど）とも同期したい場合は、Firebase Realtime Database を設定してください
+            （Googleアカウントで無料作成可・サーバー構築は不要です）。遅延の目安は1秒未満〜数秒程度です。
+          </p>
+          <div class="row" style="margin-bottom:10px;">
+            <span class="sync-status" id="sync-status"><span class="sdot"></span><span id="sync-status-text">未接続（同一ブラウザ内のみ同期）</span></span>
+          </div>
+          <div class="grid-2">
+            <div class="field">
+              <label>ルームID（同じ現場の全端末で同一の値を入力）</label>
+              <input type="text" id="f-room" placeholder="例: bunkasai-2026" />
+            </div>
+            <div class="field">
+              <label>Firebase Config（JSON）</label>
+              <textarea id="f-fbconfig" rows="4" placeholder='{"apiKey":"...","databaseURL":"https://xxxx.firebaseio.com", ...}'></textarea>
+            </div>
+          </div>
+          <div class="row">
+            <button class="primary" id="btn-sync-connect">保存して接続</button>
+            <button class="danger-outline" id="btn-sync-disconnect">Firebase同期を解除</button>
+          </div>
+          <p class="footer-note" style="text-align:left;">
+            Firebaseプロジェクトの作成手順は同梱の README.md に記載しています。
+          </p>
+        </div>
+      </div>
+
+      <div class="toolbar" style="margin-top:18px;">
         <button id="btn-demo">サンプル進行表を読み込む</button>
         <div class="spacer"></div>
         <button id="btn-export">JSONを書き出す</button>
@@ -82,8 +150,7 @@
       </div>
 
       <p class="footer-note">
-        データはこの端末のブラウザ（localStorage）内にのみ保存されます。サーバーへの送信は行われません。
-        複数の画面（タイマー表示・バックステージなど）を別ウィンドウで同時に開くと、進行状況が自動的に同期されます。
+        進行表のデータはこの端末のブラウザ（localStorage）に保存され、必要に応じて上記の同期設定で他端末と共有されます。
       </p>
 
     </div>
@@ -92,11 +159,11 @@
 
 <script src="js/storage.js"></script>
 <script src="js/timer-engine.js"></script>
+<script src="js/sync.js"></script>
 <script src="js/nav.js"></script>
 <script src="js/util.js"></script>
 <script>
-  const { Store } = RB;
-  const { Timer } = RB;
+  const { Store, Timer, Sync } = RB;
   const { toast } = RB.Util;
 
   RB.Nav.renderTopbar(document.getElementById("nav-mount"));
@@ -104,14 +171,16 @@
   const fTitle = document.getElementById("f-title");
   const fVenue = document.getElementById("f-venue");
   const fStart = document.getElementById("f-start");
+  const toggleProd = document.getElementById("toggle-production");
 
   function render(state) {
     fTitle.value = state.project.title;
     fVenue.value = state.project.venue;
     fStart.value = state.project.startTime;
+    toggleProd.checked = !!(state.meta && state.meta.productionMode);
 
     const playable = Timer.playableEvents(state);
-    document.getElementById("stat-count").textContent = playable.length;
+    document.getElementById("stat-count").textContent = playable.filter((e) => e.type === "event").length;
 
     const total = Timer.totalRuntime(state);
     document.getElementById("stat-runtime").textContent = Timer.formatSeconds(total, { forceHours: total >= 3600 });
@@ -125,6 +194,14 @@
   fTitle.addEventListener("input", () => Store.update((s) => (s.project.title = fTitle.value)));
   fVenue.addEventListener("input", () => Store.update((s) => (s.project.venue = fVenue.value)));
   fStart.addEventListener("input", () => Store.update((s) => (s.project.startTime = fStart.value || "09:00")));
+
+  toggleProd.addEventListener("change", () => {
+    Store.update((s) => {
+      s.meta = s.meta || {};
+      s.meta.productionMode = toggleProd.checked;
+    });
+    toast(toggleProd.checked ? "本番モードをONにしました" : "本番モードをOFFにしました");
+  });
 
   document.getElementById("btn-demo").addEventListener("click", () => {
     if (Store.getState().events.length && !confirm("現在の進行表を上書きしてサンプルを読み込みますか？")) return;
@@ -167,6 +244,46 @@
       Store.reset();
       toast("リセットしました");
     }
+  });
+
+  // ---- 同期設定 ----
+  const fRoom = document.getElementById("f-room");
+  const fFb = document.getElementById("f-fbconfig");
+  fRoom.value = Sync.getRoomId();
+  const savedCfg = Sync.getFirebaseConfig();
+  if (savedCfg) fFb.value = JSON.stringify(savedCfg, null, 2);
+
+  Sync.onStatusChange((st) => {
+    const el = document.getElementById("sync-status");
+    const txt = document.getElementById("sync-status-text");
+    el.className = "sync-status " + st.firebase;
+    if (st.firebase === "connected") txt.textContent = "Firebaseで同期中（ルーム: " + st.room + "）";
+    else if (st.firebase === "connecting") txt.textContent = "接続しています…";
+    else if (st.firebase === "error") txt.textContent = "接続エラー：Config・通信環境を確認してください";
+    else txt.textContent = "未接続（同一ブラウザ内のみ同期）";
+  });
+
+  document.getElementById("btn-sync-connect").addEventListener("click", () => {
+    Sync.setRoomId(fRoom.value.trim());
+    try {
+      const cfg = fFb.value.trim() ? JSON.parse(fFb.value) : null;
+      Sync.setFirebaseConfig(cfg);
+      if (cfg && fRoom.value.trim()) {
+        Sync.connect();
+        toast("同期設定を保存しました");
+      } else {
+        toast("ルームIDとConfigの両方を入力すると端末間同期が有効になります");
+      }
+    } catch (e) {
+      alert("Firebase Config の JSON 形式が正しくありません。");
+    }
+  });
+
+  document.getElementById("btn-sync-disconnect").addEventListener("click", () => {
+    Sync.disconnect();
+    Sync.setFirebaseConfig(null);
+    fFb.value = "";
+    toast("Firebase同期を解除しました（同一ブラウザ内の同期は引き続き有効です）");
   });
 </script>
 </body>

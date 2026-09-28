@@ -39,6 +39,7 @@
 
 <script src="js/storage.js"></script>
 <script src="js/timer-engine.js"></script>
+<script src="js/sync.js"></script>
 <script src="js/util.js"></script>
 <script>
   const { Store, Timer } = RB;
@@ -46,6 +47,7 @@
 
   function render(state) {
     const timing = Timer.computeTiming(state);
+    const cueMap = Timer.buildCueNumbers(state);
 
     if (!timing.event) {
       document.getElementById("b-cue").textContent = "STAND BY";
@@ -54,7 +56,8 @@
       document.getElementById("b-timer").textContent = "00:00";
       document.getElementById("b-timer").className = "stage-timer idle";
     } else {
-      document.getElementById("b-cue").textContent = "CUE " + (timing.event.cue || "—");
+      const cue = timing.event.type === "mc" ? "-" : cueMap.get(timing.event.id) || "—";
+      document.getElementById("b-cue").textContent = "CUE " + cue;
       document.getElementById("b-title").textContent = timing.event.title || "（無題）";
       document.getElementById("b-sub").textContent = timing.event.subtitle || timing.event.presenter || "\u00A0";
       document.getElementById("b-timer").textContent = Timer.formatSeconds(timing.remaining, { forceHours: timing.duration >= 3600 });
