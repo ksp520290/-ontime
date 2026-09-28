@@ -934,7 +934,7 @@ main {
   margin-right: 2px;
 }
 .toggle-btn {
-  padding: 9px 16px;
+  padding: 9px 1px;
   font-weight: 600;
   font-size: 13px;
   color: var(--text-0);
