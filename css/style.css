@@ -803,3 +803,329 @@ main {
     overflow-x: auto;
   }
 }
+
+/* ===========================================================
+   追加スタイル（司会・技術者用タブ・本番モード・同期状態 等）
+   =========================================================== */
+
+/* コンパクト行（進行表 / 振り返り） */
+.rundown.compact th {
+  font-size: 11px;
+  color: var(--text-2);
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+}
+.compact-row td {
+  padding: 4px 10px;
+  border-bottom: 1px solid var(--border-soft);
+  vertical-align: middle;
+  line-height: 1.3;
+}
+.compact-row.event-row td {
+  padding-top: 7px;
+  padding-bottom: 7px;
+}
+.compact-row.mc-row td {
+  padding-top: 3px;
+  padding-bottom: 3px;
+  color: var(--text-2);
+}
+.compact-row .cue-cell {
+  width: 26px;
+  font-size: 11px;
+  color: var(--text-2);
+}
+.compact-row .colour-cell {
+  width: 16px;
+}
+.compact-row .time-cell {
+  width: 62px;
+  font-size: 11.5px;
+  color: var(--text-1);
+}
+.compact-row .subtitle-line {
+  font-size: 11px;
+  color: var(--text-2);
+}
+.mc-toggle {
+  cursor: pointer;
+  font-size: 12.5px;
+  user-select: none;
+}
+.mc-toggle:hover {
+  color: var(--text-0);
+}
+.mc-caret {
+  color: var(--text-2);
+  font-size: 10px;
+}
+.mc-subtitle {
+  font-size: 11px;
+  color: var(--text-2);
+  padding-left: 2px;
+}
+.rowclick-target {
+  cursor: pointer;
+}
+.rowclick-target:hover {
+  color: var(--accent-cyan);
+}
+.review-row textarea {
+  width: 100%;
+  font-family: var(--font-ui);
+}
+
+/* 司会フル行 */
+.mc-row-full td {
+  background: rgba(107, 118, 132, 0.06);
+}
+
+/* メモセル（上手・音響） */
+.memo-line {
+  font-size: 12px;
+  color: var(--text-1);
+  padding: 4px 5px;
+  border-radius: var(--radius-s);
+  cursor: text;
+  min-height: 18px;
+  border: 1px solid transparent;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 220px;
+}
+.memo-line:hover {
+  border-color: var(--border);
+  background: var(--bg-2);
+}
+.memo-textarea {
+  width: 100%;
+  min-width: 150px;
+  font-size: 12px;
+}
+
+/* 緞帳ボタン（下手） */
+.curtain-group {
+  display: flex;
+  gap: 4px;
+}
+.curtain-btn {
+  padding: 5px 9px;
+  font-size: 12px;
+}
+.curtain-btn.active {
+  background: var(--accent-violet);
+  border-color: var(--accent-violet);
+  color: #fff;
+  font-weight: 700;
+}
+
+/* 技術者用 / 照明・音響 トグルボタン群 */
+.tech-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.tech-toolbar .group-label {
+  font-size: 11px;
+  color: var(--text-2);
+  margin-right: 2px;
+}
+.toggle-btn {
+  padding: 9px 16px;
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text-0);
+}
+.toggle-btn.tgl-violet.active {
+  background: #5b3fae;
+  border-color: #5b3fae;
+  color: #fff;
+}
+.toggle-btn.tgl-blue.active {
+  background: #1f6feb;
+  border-color: #1f6feb;
+  color: #fff;
+}
+.toggle-btn.tgl-amber.active {
+  background: #9a5b12;
+  border-color: #9a5b12;
+  color: #fff;
+}
+.toggle-btn.tgl-red.active {
+  background: #a5303a;
+  border-color: #a5303a;
+  color: #fff;
+}
+
+/* タブ選択（技術者用 / エディタ共通） */
+.tab-select {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.tab-select button {
+  padding: 8px 14px;
+  font-size: 12.5px;
+  border-radius: 999px;
+}
+.tab-select button.active {
+  background: var(--accent-cyan);
+  border-color: var(--accent-cyan);
+  color: #05131f;
+  font-weight: 700;
+}
+
+/* 本番モード：ホーム画面グルーピング */
+.prod-block {
+  border: 1px solid var(--accent-cyan);
+  border-radius: var(--radius-m);
+  padding: 16px;
+  background: rgba(88, 166, 255, 0.04);
+  margin-top: 18px;
+}
+.prod-block-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.prod-block-head h3 {
+  margin: 0;
+  font-size: 14px;
+}
+.prod-block-head .desc {
+  color: var(--text-2);
+  font-size: 11.5px;
+}
+
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 42px;
+  height: 24px;
+  flex-shrink: 0;
+}
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.switch .slider {
+  position: absolute;
+  inset: 0;
+  background: var(--border);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.switch .slider::before {
+  content: "";
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  left: 3px;
+  top: 3px;
+  background: #fff;
+  border-radius: 50%;
+  transition: transform 0.15s ease;
+}
+.switch input:checked + .slider {
+  background: var(--accent-green);
+}
+.switch input:checked + .slider::before {
+  transform: translateX(18px);
+}
+
+.section-title {
+  font-size: 11px;
+  color: var(--text-2);
+  letter-spacing: 0.4px;
+  margin: 22px 0 8px;
+}
+
+/* 押し／巻き 表示バッジ（オペレーター） */
+.offset-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: var(--radius-m);
+  border: 1px solid var(--border);
+  font-size: 14px;
+  font-weight: 700;
+  margin: 10px 0;
+}
+.offset-badge .val {
+  font-family: var(--font-mono);
+  font-size: 18px;
+}
+.offset-badge.flat {
+  color: var(--text-1);
+}
+.offset-badge.behind {
+  color: var(--accent-red);
+  border-color: var(--accent-red);
+  background: rgba(229, 72, 77, 0.08);
+}
+.offset-badge.ahead {
+  color: var(--accent-green);
+  border-color: var(--accent-green);
+  background: rgba(63, 185, 80, 0.08);
+}
+
+/* 同期ステータス */
+.sync-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-2);
+}
+.sync-status .sdot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-2);
+}
+.sync-status.connected .sdot {
+  background: var(--accent-green);
+  box-shadow: 0 0 6px var(--accent-green);
+}
+.sync-status.connecting .sdot {
+  background: var(--accent-amber);
+}
+.sync-status.error .sdot {
+  background: var(--accent-red);
+}
+
+/* todoリスト（予定表） */
+.todo-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 4px;
+  border-bottom: 1px solid var(--border-soft);
+}
+.todo-item.done span.txt {
+  text-decoration: line-through;
+  color: var(--text-2);
+}
+.todo-item span.txt {
+  flex: 1;
+}
+
+/* 印刷 */
+@media print {
+  .topbar, .toolbar, .tab-select, .tech-toolbar, .footer-note, button, .icon-btn {
+    display: none !important;
+  }
+  body { background: #fff; color: #000; }
+  .container { max-width: 100%; padding: 0; }
+  .panel { border: none; background: #fff; }
+  .rundown th, .rundown td { border-color: #ccc; color: #000; }
+  .colour-chip { border-color: #999; }
+}
